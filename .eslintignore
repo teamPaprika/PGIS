@@ -1,0 +1,7 @@
+node_modules
+public
+.cache
+
+// eslint-disable-next-line camelcase
+SignIn.tsx
+GoogleSignIn.tsx
