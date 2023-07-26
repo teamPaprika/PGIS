@@ -18,48 +18,104 @@ const admin = require('firebase-admin');
 const express = require('express');
 const { createHash } = require("crypto");
 const app = express();
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 if (admin.apps.length === 0) {
   admin.initializeApp();
 }
+
+const allowedSources = ['Libergon', 'Libergon-dev'];
+function generateAccessHash(sourceString) {
+  const salt = 'Paprika';
+  return Buffer.from(createHash('sha256').update(sourceString + salt).digest('hex')).toString('base64');
+}
+
+const allowedSourcesHMAC = allowedSources.map(source => {
+  return generateAccessHash(source);
+});
 
 app.get('/', (req, res) => {
   const name = process.env.NAME || 'World';
   res.send(`Hello ${name}!`);
 });
 
-app.get('/installPackages', (req, res) => {
-  const { exec } = require('child_process');
-  exec("Rscript ./src/demo/00_installpackages.R", (error, stdout, stderr) => {
-    if (error) {
-      console.log(`error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.log(`stderr: ${stderr}`);
-      return;
-    }
-    console.log(`stdout: ${stdout}`);
+// app.get('/installPackages', (req, res) => {
+//
+//   exec("Rscript ./src/demo/00_installpackages.R", (error, ) => {
+//     if (error) {
+//       console.log(`error: ${error.message}`);
+//       return;
+//     }
+//     if (stderr) {
+//       console.log(`stderr: ${stderr}`);
+//       return;
+//     }
+//     console.log(`stdout: ${stdout}`);
+//   });
+// })
+
+app.get('/Rdemo02', async (req, res) => {
+
+  // exec("Rscript ./src/demo/02_trajectories.R", (error, stdout, stderr) => {
+  //   if (error) {
+  //     console.log(`error: ${error.message}`);
+  //     res.send(`error: ${error.message}`);
+  //     return;
+  //   }
+  //   if (stderr) {
+  //     console.log(`stderr: ${stderr}`);
+  //     res.send(`stderr: ${stderr}`);
+  //     return;
+  //   }
+  //   console.log(`stdout: ${stdout}`);
+  //   res.send(`stdout: ${stdout}`);
+  // })
+  const {stdout, stderr} = await exec("Rscript ./src/demo/02_trajectories.R");
+  console.log(`stdout: ${stdout}`, `stderr: ${stderr}`);
+})
+
+app.put('/Rdemo02', async (req, res) => {
+  // get file from request
+  const file = req.body;
+
+  // write file to disk as demo02.csv
+  const fs = require('fs');
+  await fs.writeFile('./src/demo/demo02.csv', file, (err) => {
+    if (err) throw err;
+    console.log('The file has been saved!');
   });
+  const {stdout, stderr} = await exec("Rscript ./src/demo/02_trajectories.R");
+  console.log(`stdout: ${stdout}`, `stderr: ${stderr}`);
+
+
+
+
+})
+
+app.get('/getRecords', async (req, res) => {
+  const token = req.get('Authorization');
+  if (! token) {
+    res.status(401);
+  }
+  if (! allowedSourcesHMAC.includes(token)) {
+    res.status(403);
+  }
+
+  const rawDataRef = allowedSourcesHMAC[1] === token ? admin.firestore().collection('rawDataStreams-dev') : admin.firestore().collection('rawDataStreams');
+  const rawData = await rawDataRef.get();
+  const rawDataArray = rawData.docs.map(doc => doc.data());
+  res.send(rawDataArray);
 })
 
 
 
 
-
 app.post('/addRecord', async (req, res) => {
-  const allowedSources = ['Libergon', 'Libergon-dev'];
-  function generateAccessHash(sourceString) {
-    const salt = 'Paprika';
-    return Buffer.from(createHash('sha256').update(sourceString + salt).digest('hex')).toString('base64');
-  }
 
-  const allowedSourcesHMAC = allowedSources.map(source => {
-    return generateAccessHash(source);
-  });
-  // if (req.method !== 'POST') {
-  //   res.status(405);
-  // }
+
+
+
   // Check if the request comes from an allowed source, via Header Token
   const token = req.get('Authorization');
   if (! token) {
@@ -71,8 +127,11 @@ app.post('/addRecord', async (req, res) => {
 
   // write all body to firestore collection 'rawDataStreams'
   const rawData = req.body;
-  const rawDataRef = admin.firestore().collection('rawDataStreams');
-  await rawDataRef.add(rawData);
+  let rawDataRef = admin.firestore().collection('rawDataStreams');
+  if (token === allowedSourcesHMAC[1]) {
+    rawDataRef = admin.firestore().collection('rawDataStreams-dev');
+  }
+  await rawDataRef.add({ ...rawData});
   res.status(200);
 })
 

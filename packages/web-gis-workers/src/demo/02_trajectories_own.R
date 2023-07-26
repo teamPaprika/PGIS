@@ -4,7 +4,7 @@
 
 
 # Read the csv file
-turtles <- read.csv("./src/demo/tracking_sample.csv",
+turtles <- read.csv("./src/demo/demo02.csv",
                     stringsAsFactors = FALSE) 
 # The file should be in your working directory.
 

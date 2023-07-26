@@ -1,3 +1,2 @@
 # install_packages.R
-options(repos = c(CRAN = "https://cloud.r-project.org/"))
-install.packages(c('sp', 'ggmap', 'adehabitatLT'))
+install.packages('adehabitatLT_0.3.27.tar.gz', repos=NULL, type='source')

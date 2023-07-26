@@ -24,6 +24,7 @@ COPY package*.json ./
 # Install dependencies.
 RUN yarn install --only=production
 RUN apt-get update && apt-get install -y r-base
+
 # Copy local code to the container image.
 COPY . ./
 
